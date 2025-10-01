@@ -1,0 +1,99 @@
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+#include <DHT.h>
+
+// Настройки дисплея
+LiquidCrystal_I2C lcd(0x27, 16, 2); // Адрес 0x27 для LCD 1602
+
+// Настройки DHT11
+#define DHT_PIN 4
+#define DHT_TYPE DHT11
+DHT dht(DHT_PIN, DHT_TYPE);
+
+// Настройки реле
+#define RELAY_PIN 2
+
+// Таймер
+unsigned long previousMillis = 0;
+const long interval = 120000; // 2 минуты в миллисекундах
+bool relayState = false;
+unsigned long remainingTime = interval;
+
+void setup() {
+  // Инициализация пинов
+  pinMode(RELAY_PIN, OUTPUT);
+  digitalWrite(RELAY_PIN, LOW);
+  
+  // Инициализация дисплея
+  lcd.init();
+  lcd.backlight();
+  lcd.setCursor(0, 0);
+  lcd.print("Initializing...");
+  
+  // Инициализация DHT11
+  dht.begin();
+  
+  delay(2000);
+  lcd.clear();
+}
+
+void loop() {
+  unsigned long currentMillis = millis();
+  
+  // Управление реле по таймеру
+  if (currentMillis - previousMillis >= interval) {
+    previousMillis = currentMillis;
+    relayState = !relayState;
+    digitalWrite(RELAY_PIN, relayState);
+    remainingTime = interval;
+  }
+  
+  // Расчет оставшегося времени
+  remainingTime = interval - (currentMillis - previousMillis);
+  
+  // Чтение температуры
+  float temperature = dht.readTemperature();
+  
+  // Обновление дисплея
+  updateDisplay(relayState, remainingTime, temperature);
+  
+  delay(1000); // Обновление раз в секунду
+}
+
+void updateDisplay(bool state, unsigned long timeLeft, float temp) {
+  lcd.clear();
+  
+  // Первая строка: состояние реле и температура
+  lcd.setCursor(0, 0);
+  lcd.print("Relay:");
+  lcd.setCursor(7, 0);
+  if (state) {
+    lcd.print("ON ");
+  } else {
+    lcd.print("OFF");
+  }
+  
+  lcd.setCursor(11, 0);
+  lcd.print("T:");
+  if (isnan(temp)) {
+    lcd.print("Err");
+  } else {
+    lcd.print(temp, 1);
+    lcd.print("C");
+  }
+  
+  // Вторая строка: обратный отсчет
+  lcd.setCursor(0, 1);
+  lcd.print("Time left: ");
+  
+  unsigned long secondsLeft = timeLeft / 1000;
+  unsigned long minutes = secondsLeft / 60;
+  unsigned long seconds = secondsLeft % 60;
+  
+  // Форматирование времени
+  if (minutes < 10) lcd.print("0");
+  lcd.print(minutes);
+  lcd.print(":");
+  if (seconds < 10) lcd.print("0");
+  lcd.print(seconds);
+}
